@@ -18,5 +18,18 @@ let instance = new StcCluster({
     
   }
 });
-instance.doTask(options); //执行任务，需要在 master 进程里调用
+//执行任务，需要在 master 进程里调用
+instance.doTask(options).then(data => {
+  
+}); 
 ```
+
+### 方法
+
+#### doTask(options)
+
+执行任务，传入的参数会传到 taskHandler 中，返回 Promise。
+
+#### stop()
+
+结束任务，会销毁创建的子进程。
