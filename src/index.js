@@ -347,7 +347,7 @@ export default class Cluster extends EventEmitter {
     args: ''
   }){
     if(cluster.isMaster){
-      throw new Error('invokeFromMaster must be invoked in worker');
+      throw new Error('invoke must be invoked in worker');
     }
     let deferred = defer();
     let taskId = TASK_ID++;
@@ -371,6 +371,9 @@ export default class Cluster extends EventEmitter {
    * stop workers
    */
   stop(){
+    if(!cluster.isMaster){
+      throw new Error('stop must by invoked in master');
+    }
     this.workers.forEach(item => {
       item.worker.kill();
     });
