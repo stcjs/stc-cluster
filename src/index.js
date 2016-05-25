@@ -224,7 +224,7 @@ export default class Cluster extends EventEmitter {
       if(idx === 0){
         return '';
       }
-      return `${item.name}: ${item.value - arr[idx - 1].value}ms`;
+      return `${item.name}=${item.value - arr[idx - 1].value}ms`;
     }).slice(1).join(', ');
   }
   /**
