@@ -326,7 +326,7 @@ export default class Cluster extends EventEmitter {
    */
   doTask(options = {}){
     if(!cluster.isMaster){
-      throw new Error('doTask must be invoked in matser');
+      throw new Error('doTask() must be invoked in matser');
     }
     let deferred = defer();
     this.deferred.push({
@@ -347,7 +347,7 @@ export default class Cluster extends EventEmitter {
     args: ''
   }){
     if(cluster.isMaster){
-      throw new Error('invoke must be invoked in worker');
+      throw new Error('invoke() must be invoked in worker');
     }
     let deferred = defer();
     let taskId = TASK_ID++;
@@ -372,7 +372,7 @@ export default class Cluster extends EventEmitter {
    */
   stop(){
     if(!cluster.isMaster){
-      throw new Error('stop must be invoked in master');
+      throw new Error('stop() must be invoked in master');
     }
     this.workers.forEach(item => {
       item.worker.kill();
