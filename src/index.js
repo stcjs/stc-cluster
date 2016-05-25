@@ -116,7 +116,7 @@ export default class Cluster extends EventEmitter {
     this.on(TYPE.FINISH, data => {   
       let {err, taskId, ret, workerId} = data;
       let time = this.getTime(data.time, 'response');
-      this.logger(this.parseTime(time));
+      this.logger('doTask: ' + this.parseTime(time));
       this.changeWorkerStatusById(workerId, STATUS.READY);
       let deferred = this.getDeferredByTaskId(taskId);
       this._runTask();
@@ -134,18 +134,19 @@ export default class Cluster extends EventEmitter {
     
     //invoked from worker;
     this.on(TYPE.INVOKE, data => {
-      let {taskId, options} = data;
+      let {taskId, options, workerId} = data;
       let time = this.getTime(data.time, 'request');
       let promise = Promise.resolve(this.invokeHandler(options));
+      let worker = this.getWorkerById(workerId);
       promise.then(data => {
-        process.send({
+        worker.send({
           type: TYPE.INVOKE,
           ret: data,
           taskId,
           time: this.getTime(time, 'exec')
         });
       }).catch(err => {
-        process.send({
+        worker.send({
           type: TYPE.INVOKE,
           err: err.toString(),
           stack: err.stack,
@@ -189,7 +190,7 @@ export default class Cluster extends EventEmitter {
     this.on(TYPE.INVOKE, data => {
       let {err, ret, taskId} = data;
       let time = this.getTime(data.time, 'response');
-      this.logger(this.parseTime(time));
+      this.logger('invoke: ' + this.parseTime(time));
       let deferred = this.getDeferredByTaskId(taskId);
       if(!deferred){
         return;
@@ -236,6 +237,19 @@ export default class Cluster extends EventEmitter {
         return true;
       }
     });
+  }
+  /**
+   * get worker by id
+   */
+  getWorkerById(workerId){
+    let worker = null;
+    this.workers.some(item => {
+      if(item.worker.id === workerId){
+        worker = item.worker;
+        return true;
+      }
+    });
+    return worker;
   }
   /**
    * get deferred by task id
@@ -338,6 +352,7 @@ export default class Cluster extends EventEmitter {
     let deferred = defer();
     let taskId = TASK_ID++;
     let time = this.getTime({}, 'init');
+    time = this.getTime(time, 'wait');
     this.deferred.push({
       deferred,
       taskId,
@@ -347,7 +362,8 @@ export default class Cluster extends EventEmitter {
       type: TYPE.INVOKE,
       taskId,
       options,
-      time
+      time,
+      workerId: this.workerId
     });
     return deferred.promise;
   }
