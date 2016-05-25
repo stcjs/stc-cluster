@@ -116,6 +116,8 @@ export default class Cluster extends EventEmitter {
         return;
       }
       if(err){
+        err = new Error(err);
+        err.stack = data.stack;
         deferred.reject(err);
       }else{
         deferred.resolve(ret);
@@ -143,7 +145,8 @@ export default class Cluster extends EventEmitter {
       }).catch(err => {
         process.send({
           type: TYPE.FINISH, 
-          err, 
+          err: err.toString(),
+          stack: err.stack,
           taskId, 
           workerId: this.workerId,
           time: this.getTime(time, 'endTask')
