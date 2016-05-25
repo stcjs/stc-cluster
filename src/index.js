@@ -372,7 +372,7 @@ export default class Cluster extends EventEmitter {
    */
   stop(){
     if(!cluster.isMaster){
-      throw new Error('stop must by invoked in master');
+      throw new Error('stop must be invoked in master');
     }
     this.workers.forEach(item => {
       item.worker.kill();
