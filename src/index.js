@@ -19,7 +19,8 @@ const TYPE = {
   ID: '__id__',
   READY: '__ready__',
   TASK: '__task__',
-  FINISH: '__finish__'
+  FINISH: '__finish__',
+  INVOKE: '__invoke__'
 };
 
 /**
@@ -41,20 +42,25 @@ export default class Cluster extends EventEmitter {
    */
   constructor(options = {
     workers: 0,
-    taskHandler: null
+    taskHandler: null,
+    invokeHandler: null,
+    logger: null
   }){
     super();
     
     options.workers = options.workers || os.cpus().length;
     this.options = options;
+    this.logger = options.logger || noop;
     
     //for cluster
     this.workers = []; 
-    this.deferred = [];
+    this.invokeHandler = options.invokeHandler || noop;
     
     //task hanler for worker
     this.taskHandler = options.taskHandler || noop;
     this.workerId = 0; //for worker
+    
+    this.deferred = []; 
     
     this.start();
   }
@@ -109,6 +115,8 @@ export default class Cluster extends EventEmitter {
     //task finish, change worker status
     this.on(TYPE.FINISH, data => {   
       let {err, taskId, ret, workerId} = data;
+      let time = this.getTime(data.time, 'response');
+      this.logger(this.parseTime(time));
       this.changeWorkerStatusById(workerId, STATUS.READY);
       let deferred = this.getDeferredByTaskId(taskId);
       this._runTask();
@@ -123,6 +131,29 @@ export default class Cluster extends EventEmitter {
         deferred.resolve(ret);
       }
     });
+    
+    //invoked from worker;
+    this.on(TYPE.INVOKE, data => {
+      let {taskId, options} = data;
+      let time = this.getTime(data.time, 'request');
+      let promise = Promise.resolve(this.invokeHandler(options));
+      promise.then(data => {
+        process.send({
+          type: TYPE.INVOKE,
+          ret: data,
+          taskId,
+          time: this.getTime(time, 'exec')
+        });
+      }).catch(err => {
+        process.send({
+          type: TYPE.INVOKE,
+          err: err.toString(),
+          stack: err.stack,
+          taskId,
+          time: this.getTime(time, 'exec')
+        });
+      });
+    });
   }
   
   /**
@@ -132,7 +163,7 @@ export default class Cluster extends EventEmitter {
     //do task
     this.on(TYPE.TASK, data => {
       let {taskId, options} = data;
-      let time = this.getTime(data.time, 'startTask');
+      let time = this.getTime(data.time, 'request');
       let promise = Promise.resolve(this.taskHandler(options));
       promise.then(data => {
         process.send({
@@ -140,7 +171,7 @@ export default class Cluster extends EventEmitter {
           ret: data, 
           taskId, 
           workerId: this.workerId,
-          time: this.getTime(time, 'endTask')
+          time: this.getTime(time, 'exec')
         });
       }).catch(err => {
         process.send({
@@ -149,10 +180,51 @@ export default class Cluster extends EventEmitter {
           stack: err.stack,
           taskId, 
           workerId: this.workerId,
-          time: this.getTime(time, 'endTask')
+          time: this.getTime(time, 'exec')
         });
       });
     });
+    
+    //get data from master
+    this.on(TYPE.INVOKE, data => {
+      let {err, ret, taskId} = data;
+      let time = this.getTime(data.time, 'response');
+      this.logger(this.parseTime(time));
+      let deferred = this.getDeferredByTaskId(taskId);
+      if(!deferred){
+        return;
+      }
+      if(err){
+        err = new Error(err);
+        err.stack = data.stack;
+        deferred.reject(err);
+      }else{
+        deferred.resolve(ret);
+      }
+    });
+  }
+  /**
+   * get time
+   */
+  getTime(time = {}, name){
+    time[name] = Date.now();
+    return time;
+  }
+  /**
+   * parse time to string
+   */
+  parseTime(time = {}){
+    let arr = Object.keys(time).map(name => {
+      return {name, value: time[name]};
+    }).sort((a, b) => {
+      return a.time < b.time ? 1 : -1;
+    });
+    return arr.map((item, idx) => {
+      if(idx === 0){
+        return '';
+      }
+      return `${item.name}: ${item.value - arr[idx - 1].value}ms`;
+    }).slice(1).join(', ');
   }
   /**
    * change worker status by id
@@ -232,7 +304,7 @@ export default class Cluster extends EventEmitter {
       type: TYPE.TASK, 
       taskId: toDoTask.taskId, 
       options: toDoTask.options,
-      time: this.getTime(toDoTask.time, 'sendTask')
+      time: this.getTime(toDoTask.time, 'wait')
     });
   }
   /**
@@ -247,17 +319,37 @@ export default class Cluster extends EventEmitter {
       deferred, 
       options, 
       taskId: 0,
-      time: this.getTime({}, 'pushTask')
+      time: this.getTime({}, 'init')
     });
     this._runTask();
     return deferred.promise;
   }
+  
   /**
-   * get time
+   * get content from master
    */
-  getTime(time = {}, name){
-    time[name] = Date.now();
-    return time;
+  invoke(options = {
+    method: '',
+    args: ''
+  }){
+    if(cluster.isMaster){
+      throw new Error('invokeFromMaster must be invoked in worker');
+    }
+    let deferred = defer();
+    let taskId = TASK_ID++;
+    let time = this.getTime({}, 'init');
+    this.deferred.push({
+      deferred,
+      taskId,
+      time
+    });
+    process.send({
+      type: TYPE.INVOKE,
+      taskId,
+      options,
+      time
+    });
+    return deferred.promise;
   }
   /**
    * stop workers
