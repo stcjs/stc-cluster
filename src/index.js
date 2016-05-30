@@ -62,13 +62,17 @@ export default class Cluster extends EventEmitter {
     
     this.deferred = []; 
     
-    this.start();
+    this._started = false;
   }
   
   /**
    * start fork
    */
   start(){
+    if(this._started){
+      return;
+    }
+    this._started = true;
     if(cluster.isMaster){
       this.bindMasterEvent();
       for(let i = 0; i < this.options.workers; i++){
@@ -328,6 +332,8 @@ export default class Cluster extends EventEmitter {
     if(!cluster.isMaster){
       throw new Error('doTask() must be invoked in matser');
     }
+    this.start();
+    
     let deferred = defer();
     this.deferred.push({
       deferred, 
@@ -349,6 +355,8 @@ export default class Cluster extends EventEmitter {
     if(cluster.isMaster){
       throw new Error('invoke() must be invoked in worker');
     }
+    this.start();
+    
     let deferred = defer();
     let taskId = TASK_ID++;
     let time = this.getTime({}, 'init');
