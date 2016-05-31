@@ -326,7 +326,7 @@ export default class Cluster extends EventEmitter {
     });
   }
   /**
-   * do task
+   * do task, invoked in master
    */
   doTask(options = {}){
     if(!cluster.isMaster){
@@ -346,7 +346,7 @@ export default class Cluster extends EventEmitter {
   }
   
   /**
-   * get content from master
+   * get content from master, invoke in worker
    */
   invoke(options = {
     method: '',
