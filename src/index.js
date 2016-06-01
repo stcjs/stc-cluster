@@ -108,6 +108,7 @@ export default class Cluster extends EventEmitter {
    */
   bindMasterEvent(){
     //worker is ready
+    let startTime = Date.now();
     this.on(TYPE.READY, data => {
       let workerId = data.workerId;
       this.workers.some(item => {
@@ -118,13 +119,14 @@ export default class Cluster extends EventEmitter {
         }
       });
       this.hasWorkerReady = true;
+      this.logger(`workerReady: time=${Date.now() - startTime}ms, workerId=${workerId}`);
     });
     
     //task finish, change worker status
     this.on(TYPE.FINISH, data => {   
       let {err, taskId, ret, workerId} = data;
       let time = this.getTime(data.time, 'response');
-      this.logger('doTask: ' + this.parseTime(time));
+      this.logger('master: ' + this.parseTime(time));
       this.changeWorkerStatusById(workerId, STATUS.READY);
       let deferred = this.getDeferredByTaskId(taskId);
       this._runTask();
@@ -198,7 +200,7 @@ export default class Cluster extends EventEmitter {
     this.on(TYPE.INVOKE, data => {
       let {err, ret, taskId} = data;
       let time = this.getTime(data.time, 'response');
-      this.logger('invoke: ' + this.parseTime(time));
+      this.logger('worker: ' + this.parseTime(time));
       let deferred = this.getDeferredByTaskId(taskId);
       if(!deferred){
         return;
