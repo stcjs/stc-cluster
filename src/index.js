@@ -378,7 +378,7 @@ export default class Cluster extends EventEmitter {
       time: this.getTime({}, 'init')
     });
     this._runTask();
-    this._runInMaster();
+    //this._runInMaster();
     return deferred.promise;
   }
   
