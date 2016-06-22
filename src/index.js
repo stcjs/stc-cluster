@@ -366,7 +366,7 @@ export default class Cluster extends EventEmitter {
    */
   masterInvoke(options = {}){
     if(!cluster.isMaster){
-      throw new Error('doTask() must be invoked in matser');
+      throw new Error('masterInvoke() must be invoked in matser');
     }
     this.start();
     
@@ -390,7 +390,7 @@ export default class Cluster extends EventEmitter {
     args: ''
   }){
     if(cluster.isMaster){
-      throw new Error('invoke() must be invoked in worker');
+      throw new Error('workerInvoke() must be invoked in worker');
     }
     this.start();
     
