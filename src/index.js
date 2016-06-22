@@ -42,8 +42,8 @@ export default class Cluster extends EventEmitter {
    */
   constructor(options = {
     workers: 0,
-    taskHandler: null,
-    invokeHandler: null,
+    workerHandle: null,
+    masterHandle: null,
     logger: null
   }){
     super();
@@ -54,13 +54,13 @@ export default class Cluster extends EventEmitter {
     
     //for cluster
     this.workers = []; 
-    this.invokeHandler = options.invokeHandler || noop;
+    this.masterHandle = options.masterHandle || noop;
     //has worker ready
     this.hasWorkerReady = false;
     this.masterStatus = STATUS.READY;
     
-    //task hanler for worker
-    this.taskHandler = options.taskHandler || noop;
+    //task handler for worker
+    this.workerHandle = options.workerHandle || noop;
     this.workerId = 0; //for worker
     
     this.deferred = []; 
@@ -146,7 +146,7 @@ export default class Cluster extends EventEmitter {
     this.on(TYPE.INVOKE, data => {
       let {taskId, options, workerId} = data;
       let time = this.getTime(data.time, 'request');
-      let promise = Promise.resolve(this.invokeHandler(options));
+      let promise = Promise.resolve(this.masterHandle(options));
       let worker = this.getWorkerById(workerId);
       promise.then(data => {
         worker.send({
@@ -175,7 +175,7 @@ export default class Cluster extends EventEmitter {
     this.on(TYPE.TASK, data => {
       let {taskId, options} = data;
       let time = this.getTime(data.time, 'request');
-      let promise = Promise.resolve(this.taskHandler(options));
+      let promise = Promise.resolve(this.workerHandle(options));
       promise.then(data => {
         process.send({
           type: TYPE.FINISH, 
@@ -349,7 +349,7 @@ export default class Cluster extends EventEmitter {
     let {options, taskId} = toDoTask;
     //set forceInMaster flag
     options.forceInMaster = true;
-    let promise = Promise.resolve(this.taskHandler(options));
+    let promise = Promise.resolve(this.workerHandle(options));
     return promise.then(data => {
       let deferred = this.getDeferredByTaskId(taskId);
       deferred.resolve(data);
@@ -364,7 +364,7 @@ export default class Cluster extends EventEmitter {
   /**
    * do task, invoked in master
    */
-  doTask(options = {}){
+  masterInvoke(options = {}){
     if(!cluster.isMaster){
       throw new Error('doTask() must be invoked in matser');
     }
@@ -383,9 +383,9 @@ export default class Cluster extends EventEmitter {
   }
   
   /**
-   * get content from master, invoke in worker
+   * get something from master, invoke in worker
    */
-  invoke(options = {
+  workerInvoke(options = {
     method: '',
     args: ''
   }){
