@@ -94,6 +94,8 @@ export default class Cluster extends EventEmitter {
       process.on('message', params => {
         if(params.type === TYPE.ID){
           this.workerId = params.workerId;
+          // add workerId for process
+          process.workerId = this.workerId; 
           process.send({type: TYPE.READY, workerId: this.workerId});
           return;
         }
