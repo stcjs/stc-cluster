@@ -55,9 +55,6 @@ export default class Cluster extends EventEmitter {
     //for cluster
     this.workers = []; 
     this.masterHandle = options.masterHandle || noop;
-    //has worker ready
-    this.hasWorkerReady = false;
-    this.masterStatus = STATUS.READY;
     
     //task handler for worker
     this.workerHandle = options.workerHandle || noop;
@@ -120,7 +117,6 @@ export default class Cluster extends EventEmitter {
           return true;
         }
       });
-      this.hasWorkerReady = true;
       this.logger(`workerReady: time=${Date.now() - startTime}ms, workerId=${workerId}`);
     });
     
@@ -334,36 +330,6 @@ export default class Cluster extends EventEmitter {
     });
   }
   /**
-   * when workers not ready, run task in master
-   */
-  _runInMaster(){
-    if(this.hasWorkerReady){
-      return;
-    }
-    if(this.masterStatus !== STATUS.READY){
-      return;
-    }
-    let toDoTask = this.getToDoTask();
-    if(!toDoTask){
-      return;
-    }
-    this.masterStatus = STATUS.EXEC;
-    let {options, taskId} = toDoTask;
-    //set forceInMaster flag
-    options.forceInMaster = true;
-    let promise = Promise.resolve(this.workerHandle(options));
-    return promise.then(data => {
-      let deferred = this.getDeferredByTaskId(taskId);
-      deferred.resolve(data);
-    }).catch(err => {
-      let deferred = this.getDeferredByTaskId(taskId);
-      deferred.reject(err);
-    }).then(() => {
-      this.masterStatus = STATUS.READY;
-      process.nextTick(() => this._runInMaster());
-    });
-  }
-  /**
    * do task, invoked in master
    */
   masterInvoke(options = {}){
@@ -380,7 +346,6 @@ export default class Cluster extends EventEmitter {
       time: this.getTime({}, 'init')
     });
     this._runTask();
-    //this._runInMaster();
     return deferred.promise;
   }
   
