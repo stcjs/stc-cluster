@@ -8,8 +8,7 @@ import {defer} from 'stc-helper';
  */
 const STATUS = {
   WAIT: 1,
-  READY: 2,
-  EXEC: 3
+  READY: 2
 };
 
 /**
@@ -44,7 +43,8 @@ export default class Cluster extends EventEmitter {
     workers: 0,
     workerHandle: null,
     masterHandle: null,
-    logger: null
+    logger: null,
+    maxWorkerTask: 4
   }){
     super();
     
@@ -125,7 +125,7 @@ export default class Cluster extends EventEmitter {
       let {err, taskId, ret, workerId} = data;
       let time = this.getTime(data.time, 'response');
       this.logger('master: ' + this.parseTime(time));
-      this.changeWorkerStatusById(workerId, STATUS.READY);
+      this.changeWorkerStatus(workerId, -1);
       let deferred = this.getDeferredByTaskId(taskId);
       this._runTask();
       if(!deferred){
@@ -238,10 +238,10 @@ export default class Cluster extends EventEmitter {
   /**
    * change worker status by id
    */
-  changeWorkerStatusById(workerId, status){
+  changeWorkerStatus(workerId, status){
     this.workers.some(item => {
       if(item.worker.id === workerId){
-        item.status = status;
+        item.status += status;
         return true;
       }
     });
@@ -279,18 +279,24 @@ export default class Cluster extends EventEmitter {
    * get idle worker
    */
   getIdleWorker(changeStatus = true){
-    let worker = null;
-    this.workers.some(item => {
-      if(item.status === STATUS.READY){
-        worker = item.worker;
-        //change worker status to exec
-        if(changeStatus){
-          item.status = STATUS.EXEC;
-        }
-        return true;
+    let selectItem = null;
+    this.workers.forEach(item => {
+      if(item.status === STATUS.WAIT){
+        return;
+      }
+      if(item.status >= this.options.maxWorkerTask + 2){
+        return;
+      }
+      if(!selectItem || item.status < selectItem.status){
+        selectItem = item;
       }
     });
-    return worker;
+    if(selectItem){
+      if(changeStatus){
+        selectItem.status++;
+      }
+      return selectItem.worker;
+    }
   }
   /**
    * get to do task
@@ -313,15 +319,15 @@ export default class Cluster extends EventEmitter {
    * run task
    */
   _runTask(){
+    let idleWorker = this.getIdleWorker();
+    if(!idleWorker){
+      return;
+    }
     let toDoTask = this.getToDoTask();
     if(!toDoTask){
       return;
     }
-    let idleWorker = this.getIdleWorker();
-    if(!idleWorker){
-      toDoTask.taskId = 0;
-      return;
-    }
+
     idleWorker.send({
       type: TYPE.TASK, 
       taskId: toDoTask.taskId, 
