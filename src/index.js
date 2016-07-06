@@ -51,6 +51,7 @@ export default class Cluster extends EventEmitter {
     options.workers = options.workers || os.cpus().length;
     this.options = options;
     this.logger = options.logger || noop;
+    this.maxWorkerTask = this.options.maxWorkerTask || 4;
     
     //for cluster
     this.workers = []; 
@@ -113,7 +114,10 @@ export default class Cluster extends EventEmitter {
       this.workers.some(item => {
         if(item.worker.id === workerId){
           item.status = STATUS.READY;
-          this._runTask();
+          let index = 0;
+          while(index++ < this.maxWorkerTask){
+            this._runTask();
+          }
           return true;
         }
       });
@@ -284,7 +288,7 @@ export default class Cluster extends EventEmitter {
       if(item.status === STATUS.WAIT){
         return;
       }
-      if(item.status >= this.options.maxWorkerTask + 2){
+      if(item.status >= (this.maxWorkerTask + 2)){
         return;
       }
       if(!selectItem || item.status < selectItem.status){
@@ -319,12 +323,14 @@ export default class Cluster extends EventEmitter {
    * run task
    */
   _runTask(){
-    let idleWorker = this.getIdleWorker();
-    if(!idleWorker){
-      return;
-    }
     let toDoTask = this.getToDoTask();
     if(!toDoTask){
+      return;
+    }
+
+    let idleWorker = this.getIdleWorker();
+    if(!idleWorker){
+      toDoTask.taskId = 0;
       return;
     }
 
